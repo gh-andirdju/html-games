@@ -1,0 +1,12 @@
+{
+  "name": "html-games",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun server.js",
+    "dev:pages": "BASE_PATH=/html-games/ bun server.js",
+    "test:brickbreaker": "cd brickbreaker && bun run test",
+    "test:tetris": "cd tetris && bun run test",
+    "test:all": "cd brickbreaker && bun run test && cd ../tetris && bun run test"
+  }
+}

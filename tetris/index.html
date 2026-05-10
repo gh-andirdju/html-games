@@ -31,11 +31,21 @@
       <canvas id="game" width="300" height="600" aria-label="Tetris board"></canvas>
 
       <section class="touch-controls" aria-label="Touch controls">
-        <button type="button" data-action="left">Left</button>
-        <button type="button" data-action="right">Right</button>
-        <button type="button" data-action="rotate">Rotate</button>
-        <button type="button" data-action="soft-drop">Soft Drop</button>
-        <button type="button" data-action="hard-drop">Hard Drop</button>
+        <div class="thumb-zone move-zone">
+          <span class="control-label">Move</span>
+          <div class="move-row">
+            <button type="button" data-action="left">Left</button>
+            <button type="button" data-action="right">Right</button>
+          </div>
+        </div>
+        <div class="thumb-zone action-zone">
+          <span class="control-label">Actions</span>
+          <div class="action-grid">
+            <button type="button" data-action="rotate">Rotate</button>
+            <button type="button" data-action="soft-drop">Soft Drop</button>
+            <button type="button" data-action="hard-drop">Hard Drop</button>
+          </div>
+        </div>
       </section>
     </main>
     <script src="src/game.js"></script>
