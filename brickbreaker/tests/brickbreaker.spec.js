@@ -426,6 +426,21 @@ function powerUpBricks(state) {
   return bricks.filter((brick) => powerUpType(brick));
 }
 
+function brickLayoutSignature(state) {
+  const bricks = state.bricks ?? state.level?.bricks ?? [];
+  return bricks
+    .filter((brick) => brick.active !== false)
+    .map((brick) => ({
+      x: brick.x,
+      y: brick.y,
+      width: brick.width,
+      height: brick.height,
+      row: brick.row,
+      col: brick.col,
+      type: powerUpType(brick)
+    }));
+}
+
 function pickups(state) {
   return ['pickups', 'fallingPowerUps', 'drops', 'powerUps', 'powerups']
     .flatMap((key) => (Array.isArray(state[key]) ? state[key] : []))
@@ -722,6 +737,46 @@ test('lays out arcade power-up bricks deterministically across restarts', async 
 
   expect(firstLayout.length).toBeGreaterThan(0);
   expect(secondLayout).toEqual(firstLayout);
+});
+
+test('regenerates the same deterministic layout for the same level seed', async ({ page }) => {
+  await openGame(page);
+  const state = await getState(page);
+
+  state.level = 6;
+  state.bricks = null;
+  await page.evaluate((payload) => {
+    window.__brickbreakerTest.setState(payload);
+  }, state);
+  const firstLevel = await getState(page);
+  const firstLayout = brickLayoutSignature(firstLevel);
+
+  const duplicate = structuredClone(firstLevel);
+  duplicate.bricks = null;
+  await page.evaluate((payload) => {
+    window.__brickbreakerTest.setState(payload);
+  }, duplicate);
+  const secondLevel = await getState(page);
+  const secondLayout = brickLayoutSignature(secondLevel);
+
+  expect(firstLayout.length).toBeGreaterThan(0);
+  expect(secondLayout).toEqual(firstLayout);
+});
+
+test('higher levels produce denser or more advanced brick fields', async ({ page }) => {
+  await openGame(page);
+  const levelOne = brickLayoutSignature(await getState(page));
+  const state = await getState(page);
+
+  state.level = 8;
+  state.bricks = null;
+  await page.evaluate((payload) => {
+    window.__brickbreakerTest.setState(payload);
+  }, state);
+  const higher = brickLayoutSignature(await getState(page));
+
+  expect(higher.length).toBeGreaterThan(levelOne.length);
+  expect(higher.some((brick) => brick.row >= 5)).toBe(true);
 });
 
 test('spawns falling pickup from a power-up brick and catches it with the paddle', async ({ page }) => {

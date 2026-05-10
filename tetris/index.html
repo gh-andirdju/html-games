@@ -8,27 +8,38 @@
   </head>
   <body>
     <main class="game-shell">
-      <header class="hud" aria-label="Game status">
-        <div>
-          <span class="label">Score</span>
-          <strong id="score">0</strong>
-        </div>
-        <div>
-          <span class="label">Lines</span>
-          <strong id="lines">0</strong>
-        </div>
-        <div>
-          <span class="label">Level</span>
-          <strong id="level">1</strong>
-        </div>
-        <div class="status-wrap">
-          <span class="label">Status</span>
-          <strong id="status">Playing</strong>
+      <header class="topbar">
+        <div class="topbar-copy">
+          <span class="eyebrow">Endless Marathon</span>
+          <strong class="title">Tetris</strong>
         </div>
         <button id="restart" type="button">Restart</button>
       </header>
 
-      <canvas id="game" width="300" height="600" aria-label="Tetris board"></canvas>
+      <section class="playfield" aria-label="Game area">
+        <header class="hud" aria-label="Game status">
+          <div class="stat-card">
+            <span class="label">Score</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="stat-card">
+            <span class="label">Lines</span>
+            <strong id="lines">0</strong>
+          </div>
+          <div class="stat-card">
+            <span class="label">Level</span>
+            <strong id="level">1</strong>
+          </div>
+          <div class="status-wrap">
+            <span class="label">Status</span>
+            <strong id="status">Playing</strong>
+          </div>
+        </header>
+
+        <div class="board-wrap">
+          <canvas id="game" width="300" height="600" aria-label="Tetris board"></canvas>
+        </div>
+      </section>
 
       <section class="touch-controls" aria-label="Touch controls">
         <div class="thumb-zone move-zone">

@@ -11,6 +11,8 @@
   const HORIZONTAL_ARR_FRAMES = 6;
   const CLEAR_BLINK_TOTAL_FRAMES = 18;
   const CLEAR_BLINK_INTERVAL_FRAMES = 2;
+  const STATUS_MESSAGE_FRAMES = 180;
+  const MILESTONE_LEVEL_INTERVAL = 5;
 
   const COLORS = ['#000000', '#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#f87171', '#60a5fa', '#fb923c'];
   const PIECES = [
@@ -30,6 +32,7 @@
   const levelEl = document.getElementById('level');
   const statusEl = document.getElementById('status');
   const restartEl = document.getElementById('restart');
+  const statusWrapEl = statusEl.closest('.status-wrap');
   const touchButtons = Array.from(document.querySelectorAll('.touch-controls button'));
 
   function createBoard() {
@@ -106,7 +109,10 @@
   function spawnPiece() {
     state.current = nextPiece();
     state.lockTimer = 0;
-    if (!isValidPosition(state.current)) state.gameOver = true;
+    if (!isValidPosition(state.current)) {
+      state.gameOver = true;
+      syncStatusMessage();
+    }
   }
 
   function mergePiece() {
@@ -119,7 +125,65 @@
 
   function updateLevelAndSpeed() {
     state.level = 1 + Math.floor(state.lines / 10);
-    state.gravityFrames = Math.max(MIN_GRAVITY_FRAMES, BASE_GRAVITY_FRAMES - (state.level - 1) * 4);
+    state.gravityFrames = Math.max(
+      MIN_GRAVITY_FRAMES,
+      BASE_GRAVITY_FRAMES - (state.level - 1) * 4 - Math.floor((state.level - 1) / 3) * 2
+    );
+  }
+
+  function setStatusMessage(message, tone = 'normal', durationFrames = STATUS_MESSAGE_FRAMES) {
+    state.statusMessage = message;
+    state.statusTone = tone;
+    state.statusMessageTimer = durationFrames;
+  }
+
+  function fallbackStatusMessage() {
+    if (state.gameOver) return { text: 'Game Over', tone: 'warning' };
+    const linesToNextLevel = (10 - (state.lines % 10)) || 10;
+    if (linesToNextLevel <= 2) {
+      return {
+        text: `${linesToNextLevel} line${linesToNextLevel === 1 ? '' : 's'} to level ${state.level + 1}`,
+        tone: 'warning'
+      };
+    }
+    return {
+      text: `Marathon pace: ${linesToNextLevel} lines to level ${state.level + 1}`,
+      tone: 'normal'
+    };
+  }
+
+  function syncStatusMessage({ forceFallback = false } = {}) {
+    if (state.gameOver) {
+      state.statusMessage = 'Game Over';
+      state.statusTone = 'warning';
+      state.statusMessageTimer = 0;
+      return;
+    }
+    if (forceFallback || state.statusMessageTimer <= 0 || !state.statusMessage) {
+      const fallback = fallbackStatusMessage();
+      state.statusMessage = fallback.text;
+      state.statusTone = fallback.tone;
+      state.statusMessageTimer = 0;
+    }
+  }
+
+  function onLinesResolved(cleared) {
+    const previousLevel = state.level;
+    updateLevelAndSpeed();
+    if (state.level > previousLevel) {
+      if (state.level % MILESTONE_LEVEL_INTERVAL === 0) {
+        setStatusMessage(`Milestone reached: level ${state.level}`, 'milestone');
+      } else {
+        setStatusMessage(`Level ${state.level} speed up`, 'normal');
+      }
+      return;
+    }
+    if (cleared === 4) {
+      const linesToNextLevel = (10 - (state.lines % 10)) || 10;
+      setStatusMessage(`Tetris clear: ${linesToNextLevel} lines to next level`, 'milestone');
+      return;
+    }
+    syncStatusMessage({ forceFallback: true });
   }
 
   function clearLines() {
@@ -135,7 +199,7 @@
     if (cleared > 0) {
       state.lines += cleared;
       state.score += CLEAR_SCORES[cleared] * state.level;
-      updateLevelAndSpeed();
+      onLinesResolved(cleared);
     }
   }
 
@@ -174,7 +238,7 @@
     if (cleared > 0) {
       state.lines += cleared;
       state.score += CLEAR_SCORES[cleared] * state.level;
-      updateLevelAndSpeed();
+      onLinesResolved(cleared);
     }
     spawnPiece();
   }
@@ -264,7 +328,10 @@
       lockTimer: 0,
       gameOver: false,
       frame: 0,
-      clearAnimation: null
+      clearAnimation: null,
+      statusMessage: '',
+      statusTone: 'normal',
+      statusMessageTimer: 0
     };
     held.left = false;
     held.right = false;
@@ -277,6 +344,7 @@
     held.softTick = 0;
     held.hardTick = 0;
     spawnPiece();
+    syncStatusMessage({ forceFallback: true });
     render();
   }
 
@@ -287,7 +355,11 @@
   function setStateFromTests(nextState) {
     state = structuredClone(nextState);
     if (!state.clearAnimation) state.clearAnimation = null;
+    if (typeof state.statusMessage !== 'string') state.statusMessage = '';
+    if (typeof state.statusTone !== 'string') state.statusTone = 'normal';
+    if (typeof state.statusMessageTimer !== 'number') state.statusMessageTimer = 0;
     if (!state.current && !state.gameOver && !state.clearAnimation) spawnPiece();
+    syncStatusMessage({ forceFallback: !state.statusMessage });
     render();
   }
 
@@ -324,7 +396,8 @@
     scoreEl.textContent = String(state.score);
     linesEl.textContent = String(state.lines);
     levelEl.textContent = String(state.level);
-    statusEl.textContent = state.gameOver ? 'Game Over' : 'Playing';
+    statusEl.textContent = state.statusMessage;
+    statusWrapEl.dataset.tone = state.statusTone;
   }
 
   function render() {
@@ -380,6 +453,10 @@
 
   function oneFrame() {
     if (!state.gameOver) {
+      if (state.statusMessageTimer > 0) {
+        state.statusMessageTimer -= 1;
+        if (state.statusMessageTimer === 0) syncStatusMessage({ forceFallback: true });
+      }
       if (state.clearAnimation) {
         stepClearAnimation();
         state.frame += 1;
@@ -407,6 +484,8 @@
         stepDown({ rewardSoftDrop: false });
       }
       state.frame += 1;
+    } else {
+      syncStatusMessage();
     }
     render();
   }

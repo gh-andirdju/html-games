@@ -9,25 +9,29 @@
   <body>
     <main class="game-shell">
       <header class="hud" aria-label="Game status">
-        <div>
-          <span class="label">Score</span>
-          <strong id="score">0</strong>
+        <div class="hud-primary">
+          <div class="stat-chip">
+            <span class="label">Score</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="stat-chip">
+            <span class="label">Lives</span>
+            <strong id="lives">3</strong>
+          </div>
+          <div class="stat-chip">
+            <span class="label">Level</span>
+            <strong id="level">1</strong>
+          </div>
         </div>
-        <div>
-          <span class="label">Lives</span>
-          <strong id="lives">3</strong>
-        </div>
-        <div>
-          <span class="label">Level</span>
-          <strong id="level">1</strong>
-        </div>
-        <div class="effects-wrap">
-          <span class="label">Effects</span>
-          <strong id="effects">None</strong>
-        </div>
-        <div class="status-wrap">
-          <span class="label">Status</span>
-          <strong id="status">Playing</strong>
+        <div class="hud-meta">
+          <div class="meta-chip effects-wrap">
+            <span class="label">Effects</span>
+            <strong id="effects">None</strong>
+          </div>
+          <div class="meta-chip status-wrap">
+            <span class="label">Status</span>
+            <strong id="status">Playing</strong>
+          </div>
         </div>
       </header>
 
@@ -37,15 +41,15 @@
 
       <section class="touch-controls" aria-label="Touch controls">
         <div class="thumb-zone movement-zone">
-          <span class="control-label">Move</span>
+          <span class="control-label">Paddle Lane</span>
           <div id="paddle-drag-lane" class="drag-lane" aria-label="Paddle drag lane">
-            <span>Drag thumb left and right</span>
+            <span>Drag to steer</span>
           </div>
         </div>
         <div class="thumb-zone action-zone">
-          <span class="control-label">Action</span>
+          <span class="control-label">System</span>
           <button id="restart" type="button" class="action-button">Restart</button>
-          <p class="control-note">Laser auto-fires while active.</p>
+          <p class="control-note">Lasers fire automatically when armed.</p>
         </div>
       </section>
     </main>
