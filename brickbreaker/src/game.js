@@ -44,13 +44,9 @@
   var BALL_BASE_SPEED = Math.sqrt(ballStart.dx * ballStart.dx + ballStart.dy * ballStart.dy);
 
   var brickConfig = {
-    rows: 5,
-    cols: 10,
-    width: 66,
-    height: 22,
-    gap: 8,
-    top: 62,
-    left: 31
+    top: 58,
+    sidePadding: 26,
+    bottomLimit: 220
   };
 
   var keys = {
@@ -73,81 +69,131 @@
     return "";
   }
 
-  function makeBricksForLevel(level) {
-    var layout = levelLayout(level);
-    var bricks = [];
+  function createSeededRandom(seed) {
+    var value = (seed >>> 0) || 1;
+    return function () {
+      value = (value * 1664525 + 1013904223) >>> 0;
+      return value / 4294967296;
+    };
+  }
 
-    for (var row = 0; row < brickConfig.rows; row += 1) {
-      for (var col = 0; col < brickConfig.cols; col += 1) {
-        if (!layout.brickActive(row, col)) {
+  function levelSpeedMultiplier(level) {
+    return 1 + Math.min(0.42, Math.max(0, level - 1) * 0.035);
+  }
+
+  function makeBallStartForLevel(level) {
+    var speed = BALL_BASE_SPEED * levelSpeedMultiplier(level);
+    var angle = Math.atan2(Math.abs(ballStart.dy), Math.abs(ballStart.dx));
+    return {
+      radius: ballStart.radius,
+      x: ballStart.x,
+      y: ballStart.y,
+      dx: Math.cos(angle) * speed,
+      dy: -Math.sin(angle) * speed
+    };
+  }
+
+  function buildLevelConfig(level) {
+    var difficulty = Math.max(0, level - 1);
+    var rows = Math.min(8, 5 + Math.floor(difficulty / 2));
+    var cols = Math.min(11, 8 + (difficulty % 4));
+    var gap = cols >= 10 ? 6 : 7;
+    var height = rows >= 7 ? 18 : 20;
+    var availableWidth = WIDTH - brickConfig.sidePadding * 2;
+    var width = Math.floor((availableWidth - gap * (cols - 1)) / cols);
+    var left = Math.floor((WIDTH - (cols * width + gap * (cols - 1))) / 2);
+    var top = brickConfig.top;
+    var pattern = difficulty % 5;
+    return {
+      rows: rows,
+      cols: cols,
+      width: width,
+      height: height,
+      gap: gap,
+      top: top,
+      left: left,
+      pattern: pattern,
+      density: Math.min(0.88, 0.68 + difficulty * 0.022),
+      seed: level * 4099 + rows * 131 + cols * 17
+    };
+  }
+
+  function shouldActivateBrick(row, col, config, random) {
+    var center = (config.cols - 1) / 2;
+    var mirroredCol = Math.abs(col - center);
+    var waveOffset = (config.seed + row * 3) % config.cols;
+    var active = true;
+
+    if (config.pattern === 0) {
+      active = (row + col + waveOffset) % 4 !== 1;
+    } else if (config.pattern === 1) {
+      active = row === 0 || row === config.rows - 1 || mirroredCol > 0.8 || (col + waveOffset) % 3 !== 1;
+    } else if (config.pattern === 2) {
+      active = mirroredCol <= (config.cols / 2) - (row % 2) || row < 2;
+    } else if (config.pattern === 3) {
+      active = (col + waveOffset) % 2 === 0 || row % 3 === 0;
+    } else {
+      active = row < 2 || mirroredCol >= 1 || (row + col + waveOffset) % 5 !== 2;
+    }
+
+    if (!active) {
+      return false;
+    }
+
+    if (row === 0) {
+      return true;
+    }
+
+    return random() <= config.density;
+  }
+
+  function makeBricksForLevel(level) {
+    var layout = buildLevelConfig(level);
+    var random = createSeededRandom(layout.seed);
+    var bricks = [];
+    var fallbackBrick = null;
+
+    for (var row = 0; row < layout.rows; row += 1) {
+      for (var col = 0; col < layout.cols; col += 1) {
+        if (!shouldActivateBrick(row, col, layout, random)) {
           continue;
         }
-        var powerType = powerUpTypeForBrick(row, col, level, layout.powerOffset);
-        bricks.push({
-          x: brickConfig.left + col * (brickConfig.width + brickConfig.gap),
-          y: brickConfig.top + row * (brickConfig.height + brickConfig.gap),
-          width: brickConfig.width,
-          height: brickConfig.height,
+        var powerType = powerUpTypeForBrick(row, col, level, layout);
+        var brick = {
+          x: layout.left + col * (layout.width + layout.gap),
+          y: layout.top + row * (layout.height + layout.gap),
+          width: layout.width,
+          height: layout.height,
           active: true,
           row: row,
           col: col,
           powerUp: powerType,
-          powerUpType: powerType
-        });
+          powerUpType: powerType,
+          layoutSeed: layout.seed
+        };
+        bricks.push(brick);
+        if (!fallbackBrick) {
+          fallbackBrick = brick;
+        }
       }
+    }
+
+    if (bricks.length === 0 && fallbackBrick) {
+      bricks.push(fallbackBrick);
     }
 
     return bricks;
   }
 
-  function levelLayout(level) {
-    var cycle = (Math.max(1, level) - 1) % 4;
-    var shift = (level - 1) % brickConfig.cols;
+  function powerUpTypeForBrick(row, col, level, layout) {
+    var index = row * layout.cols + col;
+    var cadence = 9 + Math.min(3, Math.floor((level - 1) / 4));
 
-    if (cycle === 0) {
-      return {
-        powerOffset: 0,
-        brickActive: function (row, col) {
-          return true;
-        }
-      };
-    }
-    if (cycle === 1) {
-      return {
-        powerOffset: 2,
-        brickActive: function (row, col) {
-          return (col + shift) % 2 === 0;
-        }
-      };
-    }
-    if (cycle === 2) {
-      return {
-        powerOffset: 4,
-        brickActive: function (row, col) {
-          return (row + col + shift) % 3 !== 1;
-        }
-      };
-    }
-    return {
-      powerOffset: 1,
-      brickActive: function (row, col) {
-        if (row === 0 || row === brickConfig.rows - 1) {
-          return true;
-        }
-        return (col + shift) % 3 !== 1;
-      }
-    };
-  }
-
-  function powerUpTypeForBrick(row, col, level, powerOffset) {
-    var index = row * brickConfig.cols + col;
-    var offset = typeof powerOffset === "number" ? powerOffset : 0;
-
-    if ((index + level + offset) % 9 !== 2) {
+    if ((index + level + layout.pattern) % cadence !== 2) {
       return null;
     }
 
-    return POWER_UP_TYPES[(Math.floor(index / 9) + level + offset) % POWER_UP_TYPES.length];
+    return POWER_UP_TYPES[(Math.floor(index / 7) + level + layout.pattern) % POWER_UP_TYPES.length];
   }
 
   function clone(value) {
@@ -168,12 +214,13 @@
     snapshot.gameOver = state.status === "Game Over";
     snapshot.won = state.status === "You Win";
     snapshot.level = state.level;
+    snapshot.statusMessage = getStatusText();
     snapshot.effectsDisplay = getEffectsDisplay();
     return snapshot;
   }
 
   function resetBall() {
-    state.balls = [clone(ballStart)];
+    state.balls = [makeBallStartForLevel(state.level || 1)];
     state.ball = state.balls[0];
   }
 
@@ -200,7 +247,8 @@
       score: 0,
       lives: 3,
       level: 1,
-      status: "Playing"
+      status: "Playing",
+      levelClears: 0
     };
     resetBall();
     updateHud();
@@ -245,6 +293,7 @@
     state.paddleWidth = typeof state.paddleWidth === "number" ? state.paddleWidth : paddle.width;
     state.laserCooldown = typeof state.laserCooldown === "number" ? state.laserCooldown : 0;
     state.level = typeof state.level === "number" ? Math.max(1, Math.floor(state.level)) : 1;
+    state.levelClears = typeof state.levelClears === "number" ? Math.max(0, Math.floor(state.levelClears)) : 0;
   }
 
   function updateHud() {
@@ -252,7 +301,18 @@
     livesEl.textContent = String(state.lives);
     levelEl.textContent = String(state.level);
     effectsEl.textContent = formatEffectsDisplay(getEffectsDisplay());
-    statusEl.textContent = state.status;
+    statusEl.textContent = getStatusText();
+  }
+
+  function getStatusText() {
+    if (state.status === "Game Over") {
+      return "Game Over";
+    }
+    var multiplier = levelSpeedMultiplier(state.level || 1);
+    if ((state.level || 1) % 5 === 0) {
+      return "Milestone x" + multiplier.toFixed(2);
+    }
+    return "Zone " + String(state.level || 1) + " x" + multiplier.toFixed(2);
   }
 
   function getEffectsDisplay() {
@@ -346,6 +406,7 @@
 
   function advanceLevel() {
     state.level += 1;
+    state.levelClears += 1;
     state.bricks = makeBricksForLevel(state.level);
     prepareLevelStart();
   }
@@ -515,9 +576,10 @@
     var halfWidth = state.paddleWidth / 2;
     var impact = clamp((ball.x - paddleCenter) / halfWidth, -1, 1);
     var bounceAngle = impact * PADDLE_MAX_BOUNCE_ANGLE;
+    var speed = BALL_BASE_SPEED * levelSpeedMultiplier(state.level || 1);
 
-    ball.dx = BALL_BASE_SPEED * Math.sin(bounceAngle);
-    ball.dy = -Math.abs(BALL_BASE_SPEED * Math.cos(bounceAngle));
+    ball.dx = speed * Math.sin(bounceAngle);
+    ball.dy = -Math.abs(speed * Math.cos(bounceAngle));
   }
 
   function step(dt) {
@@ -622,7 +684,7 @@
         continue;
       }
 
-      ctx.fillStyle = powerUpColor(brick.powerUp || brick.powerUpType) || colors[Math.floor((brick.y - brickConfig.top) / (brickConfig.height + brickConfig.gap))] || "#3b82f6";
+      ctx.fillStyle = powerUpColor(brick.powerUp || brick.powerUpType) || colors[brick.row % colors.length] || "#3b82f6";
       ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
       if (brick.powerUp || brick.powerUpType) {
         drawPowerBrickBadge(brick, brick.powerUp || brick.powerUpType);

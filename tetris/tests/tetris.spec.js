@@ -187,8 +187,37 @@ test('level progression increases speed', async ({ page }) => {
   await page.keyboard.press('Space');
   await advanceFrames(page, 18);
   const after = await getState(page);
-  expect(after.level).toBeGreaterThan(1);
-  expect(after.gravityFrames).toBeLessThan(48);
+  expect(after.level).toBe(2);
+  expect(after.gravityFrames).toBe(44);
+  await expect(page.locator('#status')).toHaveText('Level 2 speed up');
+});
+
+test('milestone status persists briefly then falls back to next target message', async ({ page }) => {
+  await openGame(page);
+  const state = await getState(page);
+  state.lines = 39;
+  state.level = 4;
+  state.gravityFrames = 34;
+  const board = state.board.map((row) => row.slice());
+  for (let x = 0; x < 10; x += 1) board[19][x] = 1;
+  board[19][3] = 0;
+  board[19][4] = 0;
+  board[19][5] = 0;
+  board[19][6] = 0;
+  state.board = board;
+  state.current = { type: 'I', index: 1, x: 4, y: 17, rotation: 0 };
+  await setState(page, state);
+
+  await page.keyboard.press('Space');
+  await advanceFrames(page, 18);
+  const after = await getState(page);
+  expect(after.level).toBe(5);
+  expect(after.gravityFrames).toBe(30);
+  expect(after.statusTone).toBe('milestone');
+  await expect(page.locator('#status')).toHaveText('Milestone reached: level 5');
+
+  await advanceFrames(page, 180);
+  await expect(page.locator('#status')).toHaveText('Marathon pace: 10 lines to level 6');
 });
 
 test('game over on spawn collision then restart recovers', async ({ page }) => {
@@ -258,9 +287,24 @@ test.describe('mobile touch controls', () => {
 
     const boardBox = await page.locator('#game').boundingBox();
     const controlsBox = await page.locator('.touch-controls').boundingBox();
+    const playfieldBox = await page.locator('.playfield').boundingBox();
+    const statusBox = await page.locator('.status-wrap').boundingBox();
+    const restartStyles = await page.locator('#restart').evaluate((element) => {
+      const style = window.getComputedStyle(element);
+      return {
+        borderTopColor: style.borderTopColor,
+        backgroundImage: style.backgroundImage
+      };
+    });
 
     expect(boardBox).not.toBeNull();
     expect(controlsBox).not.toBeNull();
+    expect(playfieldBox).not.toBeNull();
+    expect(statusBox).not.toBeNull();
+    expect(boardBox.height).toBeGreaterThan(statusBox.height * 5);
+    expect(playfieldBox.height).toBeGreaterThan(controlsBox.height);
     expect(controlsBox.y).toBeGreaterThanOrEqual(boardBox.y + boardBox.height);
+    expect(restartStyles.borderTopColor).not.toBe('rgb(51, 65, 85)');
+    expect(restartStyles.backgroundImage).toContain('gradient');
   });
 });
