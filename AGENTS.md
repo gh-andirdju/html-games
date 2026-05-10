@@ -1,12 +1,12 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repo is a small HTML games collection. `brickbreaker/` is the current game. Runtime code lives in `brickbreaker/src/game.js`, styles in `brickbreaker/src/styles.css`, markup in `brickbreaker/index.html`, and the Bun static server in `brickbreaker/server.js`. Playwright specs live in `brickbreaker/tests/`; config is `brickbreaker/playwright.config.js`. Keep generated files such as `node_modules/` and `test-results/` out of git.
+This repo is a static HTML games collection. Each game lives in its own top-level folder (`brickbreaker/`, `tetris/`) with local runtime code in `src/`, page entrypoint in `index.html`, Playwright tests in `tests/`, config in `playwright.config.js`, and a Bun static server in `server.js`. Root `index.html` lists game links for GitHub Pages. Keep generated files such as `node_modules/` and `test-results/` out of git.
 
 ## Build, Test, and Development Commands
-Run commands from `brickbreaker/`.
+Run commands from the target game folder.
 - `bun install`: install dependencies from `bun.lock`.
-- `bun run dev`: serve the game at `http://127.0.0.1:5180`.
+- `bun run dev`: serve the game on its configured local port.
 - `bun run test`: run headless Chromium Playwright tests.
 - `bun run test:headed`: run tests with a visible browser.
 - `bun run test:ui`: inspect tests in Playwright UI mode.
