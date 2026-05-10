@@ -72,9 +72,7 @@ test('keyboard move rotate and hard drop work', async ({ page }) => {
   await openGame(page);
   const start = await getState(page);
 
-  await page.keyboard.down('ArrowLeft');
-  await advanceFrames(page, 4);
-  await page.keyboard.up('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
   const moved = await getState(page);
   expect(moved.current.x).toBeLessThan(start.current.x);
 
@@ -90,7 +88,46 @@ test('keyboard move rotate and hard drop work', async ({ page }) => {
   expect(dropped.score).toBeGreaterThanOrEqual(rotated.score);
 });
 
-test('line clear increments lines and score', async ({ page }) => {
+test('tap left and right moves exactly one column', async ({ page }) => {
+  await openGame(page);
+  const start = await getState(page);
+
+  await page.keyboard.press('ArrowLeft');
+  const afterLeft = await getState(page);
+  expect(afterLeft.current.x).toBe(start.current.x - 1);
+
+  await page.keyboard.press('ArrowRight');
+  const afterRight = await getState(page);
+  expect(afterRight.current.x).toBe(start.current.x);
+});
+
+test('hold left waits for DAS then repeats by ARR cadence', async ({ page }) => {
+  await openGame(page);
+  const start = await getState(page);
+
+  await page.keyboard.down('ArrowLeft');
+  const afterPress = await getState(page);
+  expect(afterPress.current.x).toBe(start.current.x - 1);
+
+  await advanceFrames(page, 15);
+  const beforeDas = await getState(page);
+  expect(beforeDas.current.x).toBe(afterPress.current.x);
+
+  await advanceFrames(page, 1);
+  const atDas = await getState(page);
+  expect(atDas.current.x).toBe(afterPress.current.x);
+
+  await advanceFrames(page, 6);
+  const firstRepeat = await getState(page);
+  expect(firstRepeat.current.x).toBe(atDas.current.x - 1);
+
+  await advanceFrames(page, 6);
+  const secondRepeat = await getState(page);
+  expect(secondRepeat.current.x).toBe(firstRepeat.current.x - 1);
+  await page.keyboard.up('ArrowLeft');
+});
+
+test('line clear animates before lines and score update', async ({ page }) => {
   await openGame(page);
   const state = await getState(page);
 
@@ -112,9 +149,23 @@ test('line clear increments lines and score', async ({ page }) => {
   await setState(page, state);
 
   await page.keyboard.press('Space');
+  const during = await getState(page);
+  const dropScore = during.score;
+  expect(during.clearAnimation).not.toBeNull();
+  expect(during.clearAnimation.rows).toEqual([19]);
+  expect(during.lines).toBe(0);
+  expect(dropScore).toBeGreaterThan(0);
+
+  await advanceFrames(page, 17);
+  const stillAnimating = await getState(page);
+  expect(stillAnimating.clearAnimation).not.toBeNull();
+  expect(stillAnimating.lines).toBe(0);
+
+  await advanceFrames(page, 1);
   const after = await getState(page);
-  expect(after.lines).toBeGreaterThan(0);
-  expect(after.score).toBeGreaterThan(0);
+  expect(after.clearAnimation).toBeNull();
+  expect(after.lines).toBe(1);
+  expect(after.score).toBe(dropScore + 100);
 });
 
 test('level progression increases speed', async ({ page }) => {
@@ -134,6 +185,7 @@ test('level progression increases speed', async ({ page }) => {
   await setState(page, state);
 
   await page.keyboard.press('Space');
+  await advanceFrames(page, 18);
   const after = await getState(page);
   expect(after.level).toBeGreaterThan(1);
   expect(after.gravityFrames).toBeLessThan(48);
@@ -143,11 +195,12 @@ test('game over on spawn collision then restart recovers', async ({ page }) => {
   await openGame(page);
   const state = await getState(page);
   const board = state.board.map((row) => row.slice());
-  for (let y = 0; y < 3; y += 1) {
-    for (let x = 0; x < 10; x += 1) board[y][x] = 2;
-  }
+  board[0][4] = 2;
+  board[0][5] = 2;
+  board[1][4] = 2;
+  board[1][5] = 2;
   state.board = board;
-  state.current = { type: 'O', index: 2, x: 4, y: 1, rotation: 0 };
+  state.current = { type: 'I', index: 1, x: 4, y: 17, rotation: 0 };
   await setState(page, state);
 
   await page.keyboard.press('Space');
@@ -174,7 +227,7 @@ test.describe('mobile touch controls', () => {
 
     const right = page.getByRole('button', { name: 'Right' });
     await right.dispatchEvent('pointerdown');
-    await advanceFrames(page, 8);
+    await advanceFrames(page, 22);
     await right.dispatchEvent('pointerup');
     const moved = await getState(page);
     expect(moved.current.x).toBeGreaterThan(start.current.x);

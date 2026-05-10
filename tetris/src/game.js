@@ -7,7 +7,10 @@
   const LOCK_DELAY_FRAMES = 30;
   const CLEAR_SCORES = [0, 100, 300, 500, 800];
   const DROP_REPEAT_FRAMES = 2;
-  const MOVE_REPEAT_FRAMES = 4;
+  const HORIZONTAL_DAS_FRAMES = 16;
+  const HORIZONTAL_ARR_FRAMES = 6;
+  const CLEAR_BLINK_TOTAL_FRAMES = 18;
+  const CLEAR_BLINK_INTERVAL_FRAMES = 2;
 
   const COLORS = ['#000000', '#22d3ee', '#fbbf24', '#a78bfa', '#34d399', '#f87171', '#60a5fa', '#fb923c'];
   const PIECES = [
@@ -44,7 +47,18 @@
   let lastTime = 0;
   let seededValue = 1;
   let bag = [];
-  const held = { left: false, right: false, softDrop: false, hardDrop: false, leftTick: 0, rightTick: 0, softTick: 0, hardTick: 0 };
+  const held = {
+    left: false,
+    right: false,
+    softDrop: false,
+    hardDrop: false,
+    leftDasTick: 0,
+    rightDasTick: 0,
+    leftArrTick: 0,
+    rightArrTick: 0,
+    softTick: 0,
+    hardTick: 0
+  };
 
   function nextRandom() {
     seededValue = (seededValue * 1664525 + 1013904223) >>> 0;
@@ -125,14 +139,56 @@
     }
   }
 
-  function lockPiece() {
-    mergePiece();
-    clearLines();
+  function findFullRows() {
+    const rows = [];
+    for (let row = 0; row < BOARD_HEIGHT; row += 1) {
+      if (state.board[row].every((value) => value !== 0)) rows.push(row);
+    }
+    return rows;
+  }
+
+  function collapseRows(rows) {
+    const rowSet = new Set(rows);
+    const kept = [];
+    for (let row = 0; row < BOARD_HEIGHT; row += 1) {
+      if (!rowSet.has(row)) kept.push(state.board[row].slice());
+    }
+    while (kept.length < BOARD_HEIGHT) kept.unshift(Array(BOARD_WIDTH).fill(0));
+    state.board = kept;
+  }
+
+  function startClearAnimation(rows) {
+    state.clearAnimation = {
+      rows: rows.slice(),
+      frame: 0,
+      totalFrames: CLEAR_BLINK_TOTAL_FRAMES,
+      blinkInterval: CLEAR_BLINK_INTERVAL_FRAMES
+    };
+  }
+
+  function resolveClearAnimation() {
+    if (!state.clearAnimation) return;
+    const cleared = state.clearAnimation.rows.length;
+    collapseRows(state.clearAnimation.rows);
+    state.clearAnimation = null;
+    if (cleared > 0) {
+      state.lines += cleared;
+      state.score += CLEAR_SCORES[cleared] * state.level;
+      updateLevelAndSpeed();
+    }
     spawnPiece();
   }
 
+  function lockPiece() {
+    mergePiece();
+    const rows = findFullRows();
+    state.current = null;
+    if (rows.length > 0) startClearAnimation(rows);
+    else spawnPiece();
+  }
+
   function movePiece(dx) {
-    if (state.gameOver) return false;
+    if (state.gameOver || !state.current || state.clearAnimation) return false;
     const next = { ...state.current, x: state.current.x + dx };
     if (!isValidPosition(next)) return false;
     state.current = next;
@@ -141,7 +197,7 @@
   }
 
   function rotatePiece() {
-    if (state.gameOver) return false;
+    if (state.gameOver || !state.current || state.clearAnimation) return false;
     const next = { ...state.current, rotation: (state.current.rotation + 1) % 4 };
     if (isValidPosition(next)) {
       state.current = next;
@@ -169,7 +225,7 @@
   }
 
   function stepDown({ rewardSoftDrop }) {
-    if (state.gameOver) return false;
+    if (state.gameOver || !state.current || state.clearAnimation) return false;
     const next = { ...state.current, y: state.current.y + 1 };
     if (isValidPosition(next)) {
       state.current = next;
@@ -182,9 +238,14 @@
   }
 
   function hardDrop() {
-    if (state.gameOver) return;
+    if (state.gameOver || !state.current || state.clearAnimation) return;
     let distance = 0;
-    while (stepDown({ rewardSoftDrop: false })) distance += 1;
+    while (true) {
+      const next = { ...state.current, y: state.current.y + 1 };
+      if (!isValidPosition(next)) break;
+      state.current = next;
+      distance += 1;
+    }
     applyHardDropPoints(distance);
     lockPiece();
   }
@@ -202,14 +263,17 @@
       gravityTick: 0,
       lockTimer: 0,
       gameOver: false,
-      frame: 0
+      frame: 0,
+      clearAnimation: null
     };
     held.left = false;
     held.right = false;
     held.softDrop = false;
     held.hardDrop = false;
-    held.leftTick = 0;
-    held.rightTick = 0;
+    held.leftDasTick = 0;
+    held.rightDasTick = 0;
+    held.leftArrTick = 0;
+    held.rightArrTick = 0;
     held.softTick = 0;
     held.hardTick = 0;
     spawnPiece();
@@ -222,6 +286,8 @@
 
   function setStateFromTests(nextState) {
     state = structuredClone(nextState);
+    if (!state.clearAnimation) state.clearAnimation = null;
+    if (!state.current && !state.gameOver && !state.clearAnimation) spawnPiece();
     render();
   }
 
@@ -233,16 +299,24 @@
   }
 
   function drawBoard() {
+    const clearAnimation = state.clearAnimation;
+    const shouldShowBlinkRows =
+      !clearAnimation ||
+      Math.floor(clearAnimation.frame / clearAnimation.blinkInterval) % 2 === 0;
+    const clearRowSet = clearAnimation ? new Set(clearAnimation.rows) : null;
     ctx.fillStyle = '#020617';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     for (let y = 0; y < BOARD_HEIGHT; y += 1) {
       for (let x = 0; x < BOARD_WIDTH; x += 1) {
+        if (clearRowSet && clearRowSet.has(y) && !shouldShowBlinkRows) continue;
         const value = state.board[y][x];
         if (value !== 0) drawCell(x, y, value);
       }
     }
-    for (const cell of pieceCells(state.current)) {
-      if (cell.y >= 0) drawCell(cell.x, cell.y, state.current.index);
+    if (state.current) {
+      for (const cell of pieceCells(state.current)) {
+        if (cell.y >= 0) drawCell(cell.x, cell.y, state.current.index);
+      }
     }
   }
 
@@ -258,27 +332,69 @@
     updateHud();
   }
 
+  function resetHorizontalHold(direction) {
+    if (direction === 'left') {
+      held.leftDasTick = 0;
+      held.leftArrTick = 0;
+    } else {
+      held.rightDasTick = 0;
+      held.rightArrTick = 0;
+    }
+  }
+
+  function setHorizontalHold(direction, isHeld) {
+    const isLeft = direction === 'left';
+    const otherDirection = isLeft ? 'right' : 'left';
+    held[direction] = isHeld;
+    if (!isHeld) {
+      resetHorizontalHold(direction);
+      return;
+    }
+    held[otherDirection] = false;
+    resetHorizontalHold(otherDirection);
+    resetHorizontalHold(direction);
+    movePiece(isLeft ? -1 : 1);
+  }
+
+  function stepHorizontalHold(direction, dx) {
+    const dasKey = direction === 'left' ? 'leftDasTick' : 'rightDasTick';
+    const arrKey = direction === 'left' ? 'leftArrTick' : 'rightArrTick';
+    if (held[dasKey] < HORIZONTAL_DAS_FRAMES) {
+      held[dasKey] += 1;
+      return;
+    }
+    held[arrKey] += 1;
+    if (held[arrKey] >= HORIZONTAL_ARR_FRAMES) {
+      movePiece(dx);
+      held[arrKey] = 0;
+    }
+  }
+
+  function stepClearAnimation() {
+    if (!state.clearAnimation) return;
+    state.clearAnimation.frame += 1;
+    if (state.clearAnimation.frame >= state.clearAnimation.totalFrames) {
+      resolveClearAnimation();
+    }
+  }
+
   function oneFrame() {
     if (!state.gameOver) {
-      if (held.left) {
-        held.leftTick += 1;
-        if (held.leftTick === 1 || held.leftTick % MOVE_REPEAT_FRAMES === 0) movePiece(-1);
-      } else {
-        held.leftTick = 0;
+      if (state.clearAnimation) {
+        stepClearAnimation();
+        state.frame += 1;
+        render();
+        return;
       }
-      if (held.right) {
-        held.rightTick += 1;
-        if (held.rightTick === 1 || held.rightTick % MOVE_REPEAT_FRAMES === 0) movePiece(1);
-      } else {
-        held.rightTick = 0;
-      }
-      if (held.softDrop) {
+      if (held.left) stepHorizontalHold('left', -1);
+      if (held.right) stepHorizontalHold('right', 1);
+      if (held.softDrop && state.current) {
         held.softTick += 1;
         if (held.softTick === 1 || held.softTick % DROP_REPEAT_FRAMES === 0) stepDown({ rewardSoftDrop: true });
       } else {
         held.softTick = 0;
       }
-      if (held.hardDrop) {
+      if (held.hardDrop && state.current) {
         held.hardTick += 1;
         if (held.hardTick === 1 || held.hardTick % 10 === 0) hardDrop();
       } else {
@@ -331,8 +447,13 @@
       return;
     }
     if (state.gameOver) return;
-    if (event.key === 'ArrowLeft') held.left = true;
-    else if (event.key === 'ArrowRight') held.right = true;
+    if (event.key === 'ArrowLeft') {
+      if (event.repeat) return;
+      setHorizontalHold('left', true);
+    } else if (event.key === 'ArrowRight') {
+      if (event.repeat) return;
+      setHorizontalHold('right', true);
+    }
     else if (event.key === 'ArrowDown') held.softDrop = true;
     else if (event.key === 'ArrowUp') rotatePiece();
     else if (event.code === 'Space') {
@@ -342,14 +463,14 @@
   }
 
   function onKeyUp(event) {
-    if (event.key === 'ArrowLeft') held.left = false;
-    else if (event.key === 'ArrowRight') held.right = false;
+    if (event.key === 'ArrowLeft') setHorizontalHold('left', false);
+    else if (event.key === 'ArrowRight') setHorizontalHold('right', false);
     else if (event.key === 'ArrowDown') held.softDrop = false;
   }
 
   function setTouchHeld(action, isHeld) {
-    if (action === 'left') held.left = isHeld;
-    else if (action === 'right') held.right = isHeld;
+    if (action === 'left') setHorizontalHold('left', isHeld);
+    else if (action === 'right') setHorizontalHold('right', isHeld);
     else if (action === 'soft-drop') held.softDrop = isHeld;
     else if (action === 'hard-drop') held.hardDrop = isHeld;
   }
