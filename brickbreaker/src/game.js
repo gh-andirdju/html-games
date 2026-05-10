@@ -9,6 +9,7 @@
   var effectsEl = document.getElementById("effects");
   var statusEl = document.getElementById("status");
   var restartButton = document.getElementById("restart");
+  var paddleDragLane = document.getElementById("paddle-drag-lane");
 
   var WIDTH = canvas.width;
   var HEIGHT = canvas.height;
@@ -54,15 +55,14 @@
 
   var keys = {
     left: false,
-    right: false,
-    fire: false
+    right: false
   };
 
   var state;
   var lastTime = 0;
   var autoStep = true;
   var renderTick = 0;
-  var activeTouchId = null;
+  var activeControlPointerId = null;
 
   function powerUpLetter(type) {
     if (type === "wide") return "E";
@@ -768,17 +768,20 @@
       keys.right = pressed;
       event.preventDefault();
     }
-    if (event.key === " " || event.key === "Spacebar" || event.code === "Space") {
-      keys.fire = pressed;
-      event.preventDefault();
-    }
   }
 
-  function updatePaddlePositionFromClientX(clientX) {
+  function updatePaddlePositionFromCanvasClientX(clientX) {
     var rect = canvas.getBoundingClientRect();
     var scale = WIDTH / rect.width;
     normalizeState();
     state.paddleX = clamp((clientX - rect.left) * scale - state.paddleWidth / 2, 0, WIDTH - state.paddleWidth);
+  }
+
+  function updatePaddlePositionFromLaneClientX(clientX) {
+    var rect = paddleDragLane.getBoundingClientRect();
+    var ratio = (clientX - rect.left) / rect.width;
+    normalizeState();
+    state.paddleX = clamp(ratio * WIDTH - state.paddleWidth / 2, 0, WIDTH - state.paddleWidth);
   }
 
   window.addEventListener("keydown", function (event) {
@@ -790,55 +793,41 @@
   });
 
   canvas.addEventListener("mousemove", function (event) {
-    updatePaddlePositionFromClientX(event.clientX);
+    updatePaddlePositionFromCanvasClientX(event.clientX);
   });
 
-  canvas.addEventListener("touchstart", function (event) {
-    if (!event.touches.length) {
-      return;
+  paddleDragLane.addEventListener("pointerdown", function (event) {
+    activeControlPointerId = event.pointerId;
+    if (paddleDragLane.setPointerCapture) {
+      paddleDragLane.setPointerCapture(event.pointerId);
     }
-
-    var touch = event.changedTouches[0];
-    activeTouchId = touch.identifier;
-    updatePaddlePositionFromClientX(touch.clientX);
+    updatePaddlePositionFromLaneClientX(event.clientX);
     event.preventDefault();
   }, { passive: false });
 
-  canvas.addEventListener("touchmove", function (event) {
-    var touch = null;
-
-    for (var i = 0; i < event.changedTouches.length; i += 1) {
-      if (event.changedTouches[i].identifier === activeTouchId) {
-        touch = event.changedTouches[i];
-        break;
-      }
-    }
-
-    if (!touch && event.touches.length) {
-      touch = event.touches[0];
-      activeTouchId = touch.identifier;
-    }
-
-    if (!touch) {
+  paddleDragLane.addEventListener("pointermove", function (event) {
+    if (activeControlPointerId !== event.pointerId) {
       return;
     }
-
-    updatePaddlePositionFromClientX(touch.clientX);
+    updatePaddlePositionFromLaneClientX(event.clientX);
     event.preventDefault();
   }, { passive: false });
 
-  canvas.addEventListener("touchend", function (event) {
-    for (var i = 0; i < event.changedTouches.length; i += 1) {
-      if (event.changedTouches[i].identifier === activeTouchId) {
-        activeTouchId = null;
-        break;
-      }
+  function clearControlPointer(event) {
+    if (activeControlPointerId !== event.pointerId) {
+      return;
     }
-
+    activeControlPointerId = null;
+    if (paddleDragLane.releasePointerCapture && paddleDragLane.hasPointerCapture && paddleDragLane.hasPointerCapture(event.pointerId)) {
+      paddleDragLane.releasePointerCapture(event.pointerId);
+    }
     if (event.cancelable) {
       event.preventDefault();
     }
-  }, { passive: false });
+  }
+
+  paddleDragLane.addEventListener("pointerup", clearControlPointer, { passive: false });
+  paddleDragLane.addEventListener("pointercancel", clearControlPointer, { passive: false });
 
   restartButton.addEventListener("click", restart);
 

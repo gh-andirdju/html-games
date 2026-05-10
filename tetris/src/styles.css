@@ -5,15 +5,19 @@
 body {
   margin: 0;
   min-height: 100vh;
-  display: grid;
-  place-items: center;
   background: #111827;
   color: #f9fafb;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 .game-shell {
-  width: min(94vw, 420px);
+  width: min(100vw, 520px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .hud {
@@ -73,17 +77,48 @@ canvas {
   border: 1px solid #334155;
   border-radius: 8px;
   background: #020617;
+  justify-self: center;
 }
 
 .touch-controls {
-  margin-top: 10px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.thumb-zone {
+  border: 1px solid #334155;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #1f2937, #111827);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.control-label {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.move-row,
+.action-grid {
+  display: grid;
   gap: 8px;
 }
 
+.move-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .touch-controls button {
-  min-height: 44px;
+  min-height: 72px;
   touch-action: manipulation;
   -webkit-user-select: none;
   user-select: none;
@@ -91,12 +126,18 @@ canvas {
 
 @media (max-width: 520px) {
   body {
-    align-content: start;
-    padding: 12px 0;
+    min-height: 100svh;
+  }
+
+  .game-shell {
+    min-height: 100svh;
+    padding: 10px 10px 12px;
+    gap: 8px;
   }
 
   .hud {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
   }
 
   .status-wrap,
@@ -104,7 +145,33 @@ canvas {
     grid-column: span 2;
   }
 
+  .hud > div {
+    min-height: 46px;
+  }
+
+  .hud strong {
+    font-size: 18px;
+  }
+
+  canvas {
+    max-height: calc(100svh - 250px);
+  }
+
   .touch-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.16fr);
+    gap: 8px;
+  }
+
+  .thumb-zone {
+    border-radius: 16px;
+    padding: 10px;
+  }
+
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .touch-controls button {
+    min-height: 64px;
   }
 }

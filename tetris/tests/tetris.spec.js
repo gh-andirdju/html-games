@@ -16,7 +16,7 @@ test.afterEach(async ({ page }) => {
 });
 
 async function openGame(page) {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForFunction(() => {
     const api = window.__tetrisTest;
     return (
@@ -251,5 +251,16 @@ test.describe('mobile touch controls', () => {
     await hard.click();
     const hardened = await getState(page);
     expect(hardened.score).toBeGreaterThanOrEqual(scoreBeforeHard);
+  });
+
+  test('keeps touch controls below the board in portrait layout', async ({ page }) => {
+    await openGame(page);
+
+    const boardBox = await page.locator('#game').boundingBox();
+    const controlsBox = await page.locator('.touch-controls').boundingBox();
+
+    expect(boardBox).not.toBeNull();
+    expect(controlsBox).not.toBeNull();
+    expect(controlsBox.y).toBeGreaterThanOrEqual(boardBox.y + boardBox.height);
   });
 });

@@ -21,7 +21,7 @@ test.afterEach(async ({ page }) => {
 });
 
 async function openGame(page) {
-  await page.goto('/');
+  await page.goto('./');
   await page.waitForFunction(() => {
     const api = window.__brickbreakerTest;
     return (
@@ -880,58 +880,30 @@ test('restart resets to level 1 and clears active power-up state from HUD and st
   expect(resetHud).not.toContain('laser');
 });
 
-async function dragTouchOnCanvas(page, relativePoints) {
+async function dragTouchOnLane(page, relativePoints) {
   await page.evaluate((points) => {
-    const canvas = document.querySelector('canvas');
-    if (!canvas) throw new Error('Canvas not found for touch drag test.');
+    const lane = document.getElementById('paddle-drag-lane');
+    if (!lane) throw new Error('Drag lane not found for touch drag test.');
 
-    const rect = canvas.getBoundingClientRect();
-    const makeTouch = (point) =>
-      new Touch({
-        identifier: 1,
-        target: canvas,
-        clientX: rect.left + rect.width * point.x,
-        clientY: rect.top + rect.height * point.y,
-        radiusX: 8,
-        radiusY: 8,
-        rotationAngle: 0,
-        force: 0.5
-      });
+    const rect = lane.getBoundingClientRect();
+    const makeEventInit = (point, type) => ({
+      bubbles: true,
+      cancelable: true,
+      pointerId: 1,
+      pointerType: 'touch',
+      isPrimary: true,
+      clientX: rect.left + rect.width * point.x,
+      clientY: rect.top + rect.height * point.y,
+      buttons: type === 'pointerup' ? 0 : 1
+    });
 
-    const startTouch = makeTouch(points[0]);
-    canvas.dispatchEvent(
-      new TouchEvent('touchstart', {
-        bubbles: true,
-        cancelable: true,
-        touches: [startTouch],
-        targetTouches: [startTouch],
-        changedTouches: [startTouch]
-      })
-    );
+    lane.dispatchEvent(new PointerEvent('pointerdown', makeEventInit(points[0], 'pointerdown')));
 
     for (let index = 1; index < points.length; index += 1) {
-      const moveTouch = makeTouch(points[index]);
-      canvas.dispatchEvent(
-        new TouchEvent('touchmove', {
-          bubbles: true,
-          cancelable: true,
-          touches: [moveTouch],
-          targetTouches: [moveTouch],
-          changedTouches: [moveTouch]
-        })
-      );
+      lane.dispatchEvent(new PointerEvent('pointermove', makeEventInit(points[index], 'pointermove')));
     }
 
-    const endTouch = makeTouch(points[points.length - 1]);
-    canvas.dispatchEvent(
-      new TouchEvent('touchend', {
-        bubbles: true,
-        cancelable: true,
-        touches: [],
-        targetTouches: [],
-        changedTouches: [endTouch]
-      })
-    );
+    lane.dispatchEvent(new PointerEvent('pointerup', makeEventInit(points[points.length - 1], 'pointerup')));
   }, relativePoints);
 }
 
@@ -942,42 +914,62 @@ test.describe('mobile touch controls', () => {
     isMobile: true
   });
 
-  test('moves paddle right from a touch drag on the canvas', async ({ page }) => {
+  test('moves paddle right from the bottom drag lane', async ({ page }) => {
     await openGame(page);
     await mutateState(page, 'centerPaddle');
     const startX = paddleX(await getState(page));
 
-    await dragTouchOnCanvas(page, [
-      { x: 0.3, y: 0.82 },
-      { x: 0.45, y: 0.82 },
-      { x: 0.62, y: 0.82 },
-      { x: 0.78, y: 0.82 }
+    await dragTouchOnLane(page, [
+      { x: 0.18, y: 0.5 },
+      { x: 0.38, y: 0.5 },
+      { x: 0.62, y: 0.5 },
+      { x: 0.82, y: 0.5 }
     ]);
     await advanceFrames(page, 2);
 
     expect(paddleX(await getState(page))).toBeGreaterThan(startX);
   });
 
-  test('moves paddle left after dragging touch from right to left', async ({ page }) => {
+  test('moves paddle left after dragging back across the bottom lane', async ({ page }) => {
     await openGame(page);
     await mutateState(page, 'centerPaddle');
 
-    await dragTouchOnCanvas(page, [
-      { x: 0.25, y: 0.82 },
-      { x: 0.5, y: 0.82 },
-      { x: 0.78, y: 0.82 }
+    await dragTouchOnLane(page, [
+      { x: 0.22, y: 0.5 },
+      { x: 0.52, y: 0.5 },
+      { x: 0.8, y: 0.5 }
     ]);
     await advanceFrames(page, 2);
     const rightX = paddleX(await getState(page));
 
-    await dragTouchOnCanvas(page, [
-      { x: 0.78, y: 0.82 },
-      { x: 0.56, y: 0.82 },
-      { x: 0.34, y: 0.82 },
-      { x: 0.18, y: 0.82 }
+    await dragTouchOnLane(page, [
+      { x: 0.8, y: 0.5 },
+      { x: 0.56, y: 0.5 },
+      { x: 0.34, y: 0.5 },
+      { x: 0.16, y: 0.5 }
     ]);
     await advanceFrames(page, 2);
 
     expect(paddleX(await getState(page))).toBeLessThan(rightX);
+  });
+
+  test('keeps the control band below the game canvas', async ({ page }) => {
+    await openGame(page);
+
+    const canvasBox = await page.locator('#game').boundingBox();
+    const controlsBox = await page.locator('.touch-controls').boundingBox();
+
+    expect(canvasBox).not.toBeNull();
+    expect(controlsBox).not.toBeNull();
+    expect(controlsBox.y).toBeGreaterThanOrEqual(canvasBox.y + canvasBox.height);
+  });
+
+  test('auto-fires laser without a manual input', async ({ page }) => {
+    await openGame(page);
+    await mutateState(page, 'catchPowerUp', { type: 'laser' });
+    await advanceFrames(page, 20);
+    const state = await getState(page);
+
+    expect(state.lasers.length).toBeGreaterThan(0);
   });
 });

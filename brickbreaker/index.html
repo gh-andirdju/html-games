@@ -29,10 +29,25 @@
           <span class="label">Status</span>
           <strong id="status">Playing</strong>
         </div>
-        <button id="restart" type="button">Restart</button>
       </header>
 
-      <canvas id="game" width="800" height="520" aria-label="Brickbreaker game area"></canvas>
+      <section class="playfield">
+        <canvas id="game" width="800" height="520" aria-label="Brickbreaker game area"></canvas>
+      </section>
+
+      <section class="touch-controls" aria-label="Touch controls">
+        <div class="thumb-zone movement-zone">
+          <span class="control-label">Move</span>
+          <div id="paddle-drag-lane" class="drag-lane" aria-label="Paddle drag lane">
+            <span>Drag thumb left and right</span>
+          </div>
+        </div>
+        <div class="thumb-zone action-zone">
+          <span class="control-label">Action</span>
+          <button id="restart" type="button" class="action-button">Restart</button>
+          <p class="control-note">Laser auto-fires while active.</p>
+        </div>
+      </section>
     </main>
 
     <script src="src/game.js"></script>
