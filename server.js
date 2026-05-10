@@ -10,6 +10,10 @@ const mimeTypes = {
   ".js": "text/javascript"
 };
 
+function hasHiddenSegment(urlPathname) {
+  return urlPathname.split("/").some((segment) => segment.startsWith(".") && segment.length > 1);
+}
+
 function normalizeRequestPath(urlPathname) {
   if (normalizedBasePath !== "/") {
     if (urlPathname === normalizedBasePath.slice(0, -1)) {
@@ -23,12 +27,22 @@ function normalizeRequestPath(urlPathname) {
     urlPathname = `/${urlPathname.slice(normalizedBasePath.length)}`;
   }
 
+  if (hasHiddenSegment(urlPathname) || urlPathname.includes("..")) {
+    return { notFound: true };
+  }
+
   if (urlPathname === "/") {
     return { pathname: "/index.html" };
   }
 
   if (urlPathname.endsWith("/")) {
     return { pathname: `${urlPathname}index.html` };
+  }
+
+  const directoryIndexPath = `${urlPathname}/index.html`;
+  const directoryIndexFile = Bun.file(`.${directoryIndexPath}`);
+  if (directoryIndexFile.size > 0) {
+    return { redirect: `${urlPathname}/` };
   }
 
   return { pathname: urlPathname };
