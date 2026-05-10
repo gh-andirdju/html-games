@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const port = Number(process.env.PORT ?? 5180);
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`;
+const appBasePath = process.env.APP_BASE_PATH
+  ? `/${process.env.APP_BASE_PATH.replace(/^\/+|\/+$/g, '')}/`
+  : '/';
+const localBaseURL = `http://127.0.0.1:${port}${appBasePath}`;
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? localBaseURL;
 
 export default defineConfig({
   testDir: './tests',
@@ -22,7 +26,10 @@ export default defineConfig({
     ? undefined
     : {
         command: `PORT=${port} bun server.js`,
-        url: baseURL,
+        url: localBaseURL,
+        env: {
+          BASE_PATH: appBasePath
+        },
         reuseExistingServer: !process.env.CI,
         timeout: 20_000
       },
